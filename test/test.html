@@ -1,21 +1,34 @@
 <!DOCTYPE html>
-<html lang='en'>
+<html lang="en">
 	<head>
-		<title>EventEmitter tests</title>
-		<meta name='author' content='Oliver Caldwell' />
-		<meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
-		<link rel='stylesheet' type='text/css' href='qunit.css' />
+		<title>Tests</title>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="qunit.css" />
 	</head>
-	
 	<body>
-		<h1 id='qunit-header'>EventEmitter tests</h1>
-		<h2 id='qunit-banner'></h2>
-		<div id='qunit-testrunner-toolbar'></div>
-		<h2 id='qunit-userAgent'></h2>
-		<ol id='qunit-tests'></ol>
-		
-		<script type='text/javascript' src='qunit.js'></script>
-		<script type='text/javascript' src='../src/EventEmitter.js'></script>
-		<script type='text/javascript' src='test.js'></script>
+		<h1 id="qunit-header">Tests</h1>
+		<h2 id="qunit-banner"></h2>
+		<div id="qunit-testrunner-toolbar"></div>
+		<h2 id="qunit-userAgent"></h2>
+		<ol id="qunit-tests"></ol>
+		<script src="qunit.js"></script>
+		<script>
+			(function() {
+				var libraryFilename = (function() {
+					var matches = /library-filename=([\w-]+)/.exec(location.search);
+					return null === matches ? "bark" : matches[1];
+				})();
+				var header = document.getElementById("qunit-header");
+				if (header.textContent) {
+					 header.textContent = libraryFilename + " tests";
+				} else if (header.innerText) {
+					header.innerText = libraryFilename + " tests";
+				}
+				var libraryLoader = document.createElement("script");
+				libraryLoader.src = "../minified/" + libraryFilename + ".js"
+				document.body.appendChild(libraryLoader);
+			})();
+		</script>
+		<script src="test.js"></script>
 	</body>
 </html>
