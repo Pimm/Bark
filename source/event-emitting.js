@@ -25,6 +25,12 @@
  * @define {boolean}
  */
 var jurassic = true;
+/**
+ * Whether Bark should include debug information.
+ *
+ * @define {boolean}
+ */
+var debug = true;
 (function(exports) {
 	/**
 	 * An empty object, which will be used to determine which event types cannot be directly used.
@@ -51,7 +57,7 @@ var jurassic = true;
 	function nop() {
 	}
 	/**
-	 * An event emitter is an object one can register event listeners to. 
+	 * An event emitter is an object one can register event listeners to.
 	 *
 	 * @constructor
 	 * @param {*=} targetAndDefaultScope
@@ -91,17 +97,29 @@ var jurassic = true;
 	 * @constructor
 	 * @param {!function():*} listener
 	 * @param {*} scope
+	 * @param {EventEmitter} eventEmitter
 	 */
-	function Bond(listener, scope) {
-		this.listener = listener;
-		this.originalScope = scope;
+	function Bond(listener, scope, eventEmitter) {
 		// Define a callListener property, which is a callListener property that respects the scope.
-		if (null === scope) {
-			this.callListener = listener;
+		if (null === (this.originalScope = scope)) {
+			this.callListener = (this.listener = listener);
 		} else {
-			this.callListener = jurassic ? bindListener(listener, scope) : listener.bind(scope);
+			this.callListener = jurassic ? bindListener(this.listener = listener, scope) : (this.listener = listener).bind(scope);
 		}
+		this.eventEmitter = eventEmitter;
 	}
+	/**
+	 * Like EventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as well as the
+	 * bond this is called on.
+	 *
+	 * @param {!string} eventType
+	 * @param {function():*} listener
+	 * @param {*=} scope
+	 * @return {!CompositeBond}
+	 */
+	Bond.prototype["add"] = function(eventType, listener, scope) {
+		return new CompositeBond(this, this.eventEmitter["add"](eventType, listener, scope));
+	};
 	if (jurassic) {
 		/**
 		 * Returns the last index at which a given element can be found in the array, or -1 if it is not present. The array is
@@ -131,22 +149,28 @@ var jurassic = true;
 		})();
 	}
 	/**
+	 * Tears down a bond. Overwrites the destroy method so it can't be called anymore, and deletes the references to the
+	 * listeners and scopes.
+	 *
+	 * @param {!Bond} bond
+	 * @return {undefined}
+	 */
+	function tearDown(bond) {
+		// Delete the references to the listener, potentially allowing the listener to be garbage collected.
+		delete bond.listener;
+		delete bond.callListener;
+		// The same goes for the scope. Perhaps this aides the garbage collection process.
+		delete bond.originalScope;
+		// Overwrite the destroy method, so calling it will have no effect.
+		bond["destroy"] = nop;
+	}
+	/**
 	 * Destroys the bond. The event emitter will no longer notify the listener. Bonds cannot be "undestroyed".
 	 *
 	 * @return {undefined}
 	 */
 	Bond.prototype["destroy"] = function() {
-		var index = jurassic ? find(this.bonds, this) : this.bonds.lastIndexOf(this);
-		if (-1 != index) {
-			this.bonds.splice(index, 1);
-			// Delete the data inside the bond.
-			delete this.listener;
-			delete this.originalScope;
-			delete this.callListener;
-			delete this.bonds;
-			// Overwrite the destroy method, so calling it again will have no effect.
-			this["destroy"] = nop;
-		}
+		tearDown(this.bonds.splice(jurassic ? find(this.bonds, this) : this.bonds.lastIndexOf(this), 1)[0]);
 	};
 	/**
 	 * Destroys the bond right after the event emitter notifies the listener. Whether the event emitter has already notified the
@@ -157,13 +181,76 @@ var jurassic = true;
 	 */
 	Bond.prototype["destroyOnUse"] = function() {
 		var bond = this;
-		var oldCallListener = this.callListener;
+		var callOriginalListener = this.callListener;
+		// Overwrite the callListener property, so the destroy method gets called when the listener is called.
 		this.callListener = function() {
-			oldCallListener.call(this);
 			bond["destroy"]();
+			callOriginalListener.call(this);
 		};
+		// Two notes.
+		// If destroyOnUse was already called on this bond, calling the callListener property will attempt to destroy the bond
+		// twice. However, due to the implementation of the destroy method, that shouldn't be a problem. A slight waste of memory
+		// and processing power, sure, but no real problem.
+		// If destroy was already called on this bond, the callListener property will be undefined. This causes the new/overwritten
+		// callListener property to be a function that will throw an error. This shouldn't be a problem either either, as the
+		// callListener property of a destroyed bond will never be used.
 		return bond;
 	};
+	if (debug) {
+		Bond.prototype.toString = function() {
+			if (this["destroy"] === nop) {
+				return "Bond(destroyed=true)";
+			} else {
+				return "Bond(destroyed=false)"
+			}
+		};
+	}
+	/**
+	 * A composite bond. (The term "composite" somewhat similar to the way the Gang of Four defined it.)
+	 *
+	 * @constructor
+	 * @param {(!Bond|!CompositeBond)} firstBond
+	 * @param {!Bond} secondBond
+	 */
+	function CompositeBond(firstBond, secondBond) {
+		this.firstBond = firstBond;
+		this.secondBond = secondBond;
+	}
+	/**
+	 * Like Bond.prototype.add.
+	 *
+	 * @param {!string} eventType
+	 * @param {function():*} listener
+	 * @param {*=} scope
+	 * @return {!CompositeBond}
+	 */
+	CompositeBond.prototype["add"] = function(eventType, listener, scope) {
+		return new CompositeBond(this.firstBond, this.secondBond["add"](eventType, listener, scope));
+	};
+	/**
+	 * Like Bond.prototype.destroy, but for all of the contained bonds.
+	 *
+	 * @return {undefined}
+	 */
+	CompositeBond.prototype["destroy"] = function() {
+		this.firstBond["destroy"]();
+		this.secondBond["destroy"]();
+	};
+	/**
+	 * Like Bond.prototype.destroyOnUse, but for all of the contained bonds.
+	 *
+	 * @return {!CompositeBond}
+	 */
+	CompositeBond.prototype["destroyOnUse"] = function() {
+		this.firstBond["destroyOnUse"]();
+		this.secondBond["destroyOnUse"]();
+		return this;
+	};
+	if (debug) {
+		CompositeBond.prototype.toString = function() {
+			return "CompositeBond(firstBond=" + this.firstBond + ", secondBond=" + this.secondBond + ")";
+		};
+	}
 	/**
 	 * Registers the passed listener as a listener for the passed event type, so the passed listener will be notified when the
 	 * event emitter emits an event with the passed event type.
@@ -207,7 +294,7 @@ var jurassic = true;
 		var bond;
 		// Create the bond bundle if it doesn't exist yet, and push a new bond to it.
 		if (!bonds) {
-			bonds = this.bondBundles[eventType] = [bond = new Bond(listener, scope)];
+			bonds = this.bondBundles[eventType] = [bond = new Bond(listener, scope, this)];
 		// Push a new bond to the bond bundle, if such a bond bundle existed already.
 		} else {
 			// However, if a bond with the passed listener and scope already exists, return it. Don't add a new bond.
@@ -219,7 +306,7 @@ var jurassic = true;
 					}
 				}
 			}
-			bonds.push(bond = new Bond(listener, scope));
+			bonds.push(bond = new Bond(listener, scope, this));
 		}
 		bond.bonds = bonds;
 		// Return the bond.
@@ -270,7 +357,7 @@ var jurassic = true;
 	 * @param {!string} eventType
 	 * @param {!function():*} listener
 	 * @param {*=} scope
-	 * @return {undefined}
+	 * @return {!EventEmitter}
 	 */
 	EventEmitter.prototype["remove"] = function(eventType, listener, scope) {
 		// Determine the scope that will be passed to the bond, based on the passed scope and the target passed to the constructor.
@@ -292,12 +379,13 @@ var jurassic = true;
 		if (bonds) {
 			for (var index = 0; index < bonds.length; index++) {
 				if (bonds[index].listener == listener && bonds[index].originalScope === scope) {
-					bonds.splice(index, 1);
+					tearDown(bonds.splice(index, 1)[0]);
 					// As duplicates can't exist, return directly after a catch.
-					return;
+					return this;
 				}
 			}
 		}
+		return this;
 	};
 	// TODO: export the class
 	/*if(typeof define === 'function' && define.amd) {
