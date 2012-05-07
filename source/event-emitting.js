@@ -56,16 +56,6 @@ var debug = true;
 	 */
 	function nop() {
 	}
-	/**
-	 * An event emitter is an object one can register event listeners to.
-	 *
-	 * @constructor
-	 * @param {*=} targetAndDefaultScope
-	 */
-	function EventEmitter(targetAndDefaultScope) {
-		this.bondBundles = {};
-		this.targetAndDefaultScope = undefined === targetAndDefaultScope ? this : targetAndDefaultScope;
-	}
 	if (jurassic) {
 		/**
 		 * Returns a version of the passed listener that is bound to the passed scope. (Jurassic Bark only.)
@@ -215,31 +205,11 @@ var debug = true;
 	function NullBond(eventEmitter) {
 		this.eventEmitter = eventEmitter;
 	}
-	/**
-	 * Like EventEmitter.prototype.add.
-	 *
-	 * @param {!string} eventType
-	 * @param {function():*} listener
-	 * @param {*=} scope
-	 * @return {!Bond}
-	 */
-	NullBond.prototype["add"] = function(eventType, listener, scope) {
+	NullBond.prototype = {"add": function(eventType, listener, scope) {
 		return this.eventEmitter["add"](eventType, listener, scope);
-	};
-	/**
-	 * Like Bond.prototype.destroy.
-	 *
-	 * @return {undefined}
-	 */
-	NullBond.prototype["destroy"] = nop;
-	/**
-	 * Like Bond.prototype.destroyOnUse.
-	 *
-	 * @return {!Bond}
-	 */
-	NullBond.prototype["destroyOnUse"] = function() {
+	}, "destroy": nop, "destroyOnUse": function() {
 		return this;
-	};
+	}};
 	if (debug) {
 		NullBond.prototype["toString"] = function() {
 			return "NullBond";
@@ -257,40 +227,30 @@ var debug = true;
 		this.firstBond = firstBond;
 		this.secondBond = secondBond;
 	}
-	/**
-	 * Like Bond.prototype.add.
-	 *
-	 * @param {!string} eventType
-	 * @param {function():*} listener
-	 * @param {*=} scope
-	 * @return {!Bond}
-	 */
-	CompositeBond.prototype["add"] = function(eventType, listener, scope) {
+	CompositeBond.prototype = {"add": function(eventType, listener, scope) {
 		return new CompositeBond(this.firstBond, this.secondBond["add"](eventType, listener, scope));
-	};
-	/**
-	 * Like Bond.prototype.destroy, but for all of the contained bonds.
-	 *
-	 * @return {undefined}
-	 */
-	CompositeBond.prototype["destroy"] = function() {
+	}, "destroy": function() {
 		this.firstBond["destroy"]();
 		this.secondBond["destroy"]();
-	};
-	/**
-	 * Like Bond.prototype.destroyOnUse, but for all of the contained bonds.
-	 *
-	 * @return {!Bond}
-	 */
-	CompositeBond.prototype["destroyOnUse"] = function() {
+	}, "destroyOnUse": function() {
 		this.firstBond["destroyOnUse"]();
 		this.secondBond["destroyOnUse"]();
 		return this;
-	};
+	}};
 	if (debug) {
 		CompositeBond.prototype.toString = function() {
 			return "CompositeBond(firstBond=" + this.firstBond + ", secondBond=" + this.secondBond + ")";
 		};
+	}
+	/**
+	 * An event emitter is an object one can register event listeners to.
+	 *
+	 * @constructor
+	 * @param {*=} targetAndDefaultScope
+	 */
+	function EventEmitter(targetAndDefaultScope) {
+		this.bondBundles = {};
+		this.targetAndDefaultScope = undefined === targetAndDefaultScope ? this : targetAndDefaultScope;
 	}
 	/**
 	 * Registers the passed listener as a listener for the passed event type, so the passed listener will be notified when the
@@ -376,7 +336,7 @@ var debug = true;
 	 * Emits an event. All the listeners that are registered to this event emitter for the passed event type will be notified.
 	 *
 	 * @param {!string} eventType
-	 * @return {undefined}
+	 * @return {{emit: !function(string)}}
 	 */
 	EventEmitter.prototype["emit"] = function(eventType) {
 		// Find the bond bundle. Prefix "reserved" event types.
@@ -401,6 +361,11 @@ var debug = true;
 			// Delete the temporary property.
 			delete this.callingListener;
 		}
+		if (this.emitLink) {
+			return this.emitLink;
+		} else {
+			return this.emitLink = {"emit": jurassic ? bindListener(this["emit"], this) : this["emit"].bind(this)};
+		}
 	};
 	/**
 	 * Banana banana banana.
@@ -408,7 +373,7 @@ var debug = true;
 	 * @param {!string} eventType
 	 * @param {!function():*} listener
 	 * @param {*=} scope
-	 * @return {!EventEmitter}
+	 * @return {{remove: !function(!string, !function():*, *=)}}
 	 */
 	EventEmitter.prototype["remove"] = function(eventType, listener, scope) {
 		// Determine the scope that will be passed to the bond, based on the passed scope and the target passed to the constructor.
@@ -431,12 +396,16 @@ var debug = true;
 			for (var index = 0; index < bonds.length; index++) {
 				if (bonds[index].listener == listener && bonds[index].originalScope === scope) {
 					tearDown(bonds.splice(index, 1)[0]);
-					// As duplicates can't exist, return directly after a catch.
-					return this;
+					// As duplicates can't exist, stop directly after a catch.
+					break;
 				}
 			}
 		}
-		return this;
+		if (this.removeLink) {
+			return this.removeLink;
+		} else {
+			return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
+		}
 	};
 	// TODO: export the class
 	/*if(typeof define === 'function' && define.amd) {
