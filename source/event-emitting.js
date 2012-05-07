@@ -97,7 +97,7 @@ var debug = true;
 	 * @constructor
 	 * @param {!function():*} listener
 	 * @param {*} scope
-	 * @param {EventEmitter} eventEmitter
+	 * @param {!EventEmitter} eventEmitter
 	 */
 	function Bond(listener, scope, eventEmitter) {
 		// Define a callListener property, which is a callListener property that respects the scope.
@@ -115,7 +115,7 @@ var debug = true;
 	 * @param {!string} eventType
 	 * @param {function():*} listener
 	 * @param {*=} scope
-	 * @return {!CompositeBond}
+	 * @return {!Bond}
 	 */
 	Bond.prototype["add"] = function(eventType, listener, scope) {
 		return new CompositeBond(this, this.eventEmitter["add"](eventType, listener, scope));
@@ -206,10 +206,51 @@ var debug = true;
 		};
 	}
 	/**
+	 * A null-object bond, that will be returned when null is passed as a listener.
+	 *
+	 * @constructor
+	 * @extends Bond
+	 * @param {!EventEmitter} eventEmitter
+	 */
+	function NullBond(eventEmitter) {
+		this.eventEmitter = eventEmitter;
+	}
+	/**
+	 * Like EventEmitter.prototype.add.
+	 *
+	 * @param {!string} eventType
+	 * @param {function():*} listener
+	 * @param {*=} scope
+	 * @return {!Bond}
+	 */
+	NullBond.prototype["add"] = function(eventType, listener, scope) {
+		return this.eventEmitter["add"](eventType, listener, scope);
+	};
+	/**
+	 * Like Bond.prototype.destroy.
+	 *
+	 * @return {undefined}
+	 */
+	NullBond.prototype["destroy"] = nop;
+	/**
+	 * Like Bond.prototype.destroyOnUse.
+	 *
+	 * @return {!Bond}
+	 */
+	NullBond.prototype["destroyOnUse"] = function() {
+		return this;
+	};
+	if (debug) {
+		NullBond.prototype["toString"] = function() {
+			return "NullBond";
+		};
+	}
+	/**
 	 * A composite bond. (The term "composite" somewhat similar to the way the Gang of Four defined it.)
 	 *
 	 * @constructor
-	 * @param {(!Bond|!CompositeBond)} firstBond
+	 * @extends Bond
+	 * @param {!Bond} firstBond
 	 * @param {!Bond} secondBond
 	 */
 	function CompositeBond(firstBond, secondBond) {
@@ -222,7 +263,7 @@ var debug = true;
 	 * @param {!string} eventType
 	 * @param {function():*} listener
 	 * @param {*=} scope
-	 * @return {!CompositeBond}
+	 * @return {!Bond}
 	 */
 	CompositeBond.prototype["add"] = function(eventType, listener, scope) {
 		return new CompositeBond(this.firstBond, this.secondBond["add"](eventType, listener, scope));
@@ -239,7 +280,7 @@ var debug = true;
 	/**
 	 * Like Bond.prototype.destroyOnUse, but for all of the contained bonds.
 	 *
-	 * @return {!CompositeBond}
+	 * @return {!Bond}
 	 */
 	CompositeBond.prototype["destroyOnUse"] = function() {
 		this.firstBond["destroyOnUse"]();
@@ -266,8 +307,10 @@ var debug = true;
 	 *
 	 * If multiple identical listeners are registered to the same event emitter with the same scope, the duplicates are
 	 * discarded. They do not cause the listener to be notified of the same event twice, and since the duplicates are discarded,
-	 * they do not need to be removed manually. When trying to register a diplucate, the bond returned while registering it the
+	 * they do not need to be removed manually. When trying to register a duplucate, the bond returned while registering it the
 	 * first time will be returned.
+	 *
+	 * If the passed listener is null, no exception will be thrown. A valid bond will be returned.
 	 *
 	 * @param {!string} eventType
 	 * @param {function():*} listener
@@ -275,10 +318,18 @@ var debug = true;
 	 * @return {!Bond}
 	 */
 	EventEmitter.prototype["add"] = function(eventType, listener, scope) {
+		// If null is passed as the listener, a null-object bond is returned.
+		if (null === listener) {
+			if (this.nullBond) {
+				return this.nullBond;
+			} else {
+				return this.nullBond = new NullBond(this);
+			}
+		}
 		// Determine the scope that will be passed to the bond, based on the passed scope and the target passed to the constructor.
 		if (undefined === scope) {
 			// If no specific scope is defined, not in the constructor nor in this function, use null as the scope.
-			if (this == this.targetAndDefaultScope) {
+			if (this === this.targetAndDefaultScope) {
 				scope = null;
 			// If no scope was defined to in this function, but a scope was defined in the constructor, use that scope.
 			} else {
