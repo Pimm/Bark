@@ -205,7 +205,7 @@ var debug = true;
 	function NullBond(eventEmitter) {
 		this.eventEmitter = eventEmitter;
 	}
-	NullBond.prototype = {"add": function(eventType, listener, scope) {
+	NullBond["prototype"] = {"add": function(eventType, listener, scope) {
 		return this.eventEmitter["add"](eventType, listener, scope);
 	}, "destroy": nop, "destroyOnUse": function() {
 		return this;
@@ -227,7 +227,7 @@ var debug = true;
 		this.firstBond = firstBond;
 		this.secondBond = secondBond;
 	}
-	CompositeBond.prototype = {"add": function(eventType, listener, scope) {
+	CompositeBond["prototype"] = {"add": function(eventType, listener, scope) {
 		return new CompositeBond(this.firstBond, this.secondBond["add"](eventType, listener, scope));
 	}, "destroy": function() {
 		this.firstBond["destroy"]();
