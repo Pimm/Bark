@@ -347,19 +347,29 @@ var debug = true;
 		}
 		if (bonds) {
 			if (1 == bonds.length) {
-				this.callingListener = bonds[0].callListener;
-				this.callingListener();
+				if (arguments.length < 2) {
+					bonds[0].callListener.call(this);
+				} else {
+					bonds[0].callListener.apply(this, bonds.slice.call(arguments, 1));
+				}
 			} else if (bonds.length /* To ensure not too much work is done if the bond bundle is empty. */) {
 				// Copy the bond bundle, to make sure adding and removing bonds won't cause the lines below to behave unexpectedly.
 				bonds = copy(bonds);
 				// Call the listeners of the bonds.
-				for (var index = 0; index < bonds.length; index++) {
-					this.callingListener = bonds[index].callListener;
-					this.callingListener();
+				if (arguments.length < 2) {
+					for (var index = 0; index < bonds.length; index++) {
+						bonds[index].callListener.call(this);
+					}
+				} else {
+					/**
+					 * @type {!Array}
+					 */
+					var passedArguments = bonds.slice.call(arguments, 1);
+					for (var index = 0; index < bonds.length; index++) {
+						bonds[index].callListener.apply(this, passedArguments);
+					}
 				}
 			}
-			// Delete the temporary property.
-			delete this.callingListener;
 		}
 		if (this.emitLink) {
 			return this.emitLink;
