@@ -102,6 +102,29 @@ test("Double-add with different scopes test", function() {
 	dog.eventEmitter.emit("bark");
 	strictEqual(barkCount, 3);
 });
+test("Add and emit with data test", function() {
+	var dog = {};
+	dog.eventEmitter = new EventEmitter(dog);
+	var barkSound = null;
+	dog.eventEmitter.add("bark", function(sound) {
+		barkSound = sound;
+	});
+	dog.eventEmitter.emit("bark", "woof");
+	strictEqual(barkSound, "woof");
+});
+test("Add and emit with more data test", function() {
+	var dog = {};
+	dog.eventEmitter = new EventEmitter(dog);
+	function testValue(input) {
+		return input > 9000;
+	}
+	var data = null;
+	dog.eventEmitter.add("bark", function(sound, validator, year) {
+		data = [sound, validator, year];
+	});
+	dog.eventEmitter.emit("bark", "woof", testValue, new Date().getYear());
+	deepEqual(data, ["woof", testValue, new Date().getYear()]);
+});
 // Chaining.
 test("Chain-add and chain-emit test", function() {
 	var dog = {};
