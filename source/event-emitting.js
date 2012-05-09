@@ -26,6 +26,12 @@
  */
 var jurassic = true;
 /**
+ * Whether Bark should include a wrapper around EventTarget.
+ *
+ * @define {boolean}
+ */
+var html = true;
+/**
  * Whether Bark should include debug information.
  *
  * @define {boolean}
@@ -60,9 +66,9 @@ var debug = true;
 		/**
 		 * Returns a version of the passed listener that is bound to the passed scope. (Jurassic Bark only.)
 		 *
-		 * @param {!function():*} listener
+		 * @param {(!function()|!function((Event|null)))} listener
 		 * @param {*} scope
-		 * @return {!function():*}
+		 * @return {(!function()|!function((Event|null)))}
 		 */
 		var bindListener = (function() {
 			// If the engine supports Function.prototype.bind, use it.
@@ -91,7 +97,7 @@ var debug = true;
 	 */
 	function Bond(listener, scope, eventEmitter) {
 		// Define a callListener property, which is a callListener property that respects the scope.
-		if (null === (this.originalScope = scope)) {
+		if (undefined === (this.originalScope = scope)) {
 			this.callListener = (this.listener = listener);
 		} else {
 			this.callListener = jurassic ? bindListener(this.listener = listener, scope) : (this.listener = listener).bind(scope);
@@ -191,7 +197,7 @@ var debug = true;
 			if (this["destroy"] === nop) {
 				return "Bond(destroyed=true)";
 			} else {
-				return "Bond(destroyed=false)"
+				return "Bond(destroyed=false)";
 			}
 		};
 	}
@@ -200,7 +206,7 @@ var debug = true;
 	 *
 	 * @constructor
 	 * @extends Bond
-	 * @param {!EventEmitter} eventEmitter
+	 * @param {(!EventEmitter|!HTMLEventEmitter)} eventEmitter
 	 */
 	function NullBond(eventEmitter) {
 		this.eventEmitter = eventEmitter;
@@ -249,8 +255,8 @@ var debug = true;
 	 * @param {*=} targetAndDefaultScope
 	 */
 	function EventEmitter(targetAndDefaultScope) {
-		this.bondBundles = {};
 		this.targetAndDefaultScope = undefined === targetAndDefaultScope ? this : targetAndDefaultScope;
+		this.bondBundles = {};
 	}
 	/**
 	 * Registers the passed listener as a listener for the passed event type, so the passed listener will be notified when the
@@ -259,16 +265,16 @@ var debug = true;
 	 * Returns the bond between the event emitter and the listener. The bond can be destroyed by calling either the remove method
 	 * of the event emitter, or the destroy method of the returned bond.
 	 *
-	 * The passed scope will be used as the default scope for the listeners that will be registered to this event emitter. If no
-	 * scope is passed, the event emitter itself will be the default scope.
+	 * The passed scope will be used for a scope when the listener is called. If no scope is passed, the default scope as passed
+	 * to the constructor of the event emitter will be the scope.
 	 *
 	 * If a listener is registered to an event emitter while it is processing/emitting an event, that listener will not be
 	 * notified of that event.
 	 *
 	 * If multiple identical listeners are registered to the same event emitter with the same scope, the duplicates are
 	 * discarded. They do not cause the listener to be notified of the same event twice, and since the duplicates are discarded,
-	 * they do not need to be removed manually. When trying to register a duplucate, the bond returned while registering it the
-	 * first time will be returned.
+	 * they do not need to be removed manually. This is consistent with the behaviour of the EventTarget in DOM3. When trying to
+	 * register a duplicate, the bond returned while registering it the first time will be returned.
 	 *
 	 * If the passed listener is null, no exception will be thrown. A valid bond will be returned.
 	 *
@@ -286,16 +292,6 @@ var debug = true;
 				return this.nullBond = new NullBond(this);
 			}
 		}
-		// Determine the scope that will be passed to the bond, based on the passed scope and the target passed to the constructor.
-		if (undefined === scope) {
-			// If no specific scope is defined, not in the constructor nor in this function, use null as the scope.
-			if (this === this.targetAndDefaultScope) {
-				scope = null;
-			// If no scope was defined to in this function, but a scope was defined in the constructor, use that scope.
-			} else {
-				scope = this.targetAndDefaultScope;
-			}
-		}
 		// Find the bond bundle. Prefix "reserved" event types.
 		if (emptyObject[eventType]) {
 			var bonds = this.bondBundles[eventType = (reservedEventTypePrefix + eventType)];
@@ -311,8 +307,7 @@ var debug = true;
 			// However, if a bond with the passed listener and scope already exists, return it. Don't add a new bond.
 			for (var index = 0; index < bonds.length; index++) {
 				if (bonds[index].listener == listener) {
-					bond = bonds[index];
-					if (bond.originalScope === scope) {
+					if ((bond = bonds[index]).originalScope === scope) {
 						return bond;
 					}
 				}
@@ -346,31 +341,23 @@ var debug = true;
 			var bonds = this.bondBundles[eventType];
 		}
 		if (bonds) {
+			/**
+			 * @type {!Array}
+			 */
+			var passingArguments = 1 == arguments.length ? [] : bonds.slice.call(arguments, 1);
 			if (1 == bonds.length) {
-				if (arguments.length < 2) {
-					bonds[0].callListener.call(this);
-				} else {
-					bonds[0].callListener.apply(this, bonds.slice.call(arguments, 1));
-				}
+				// If only one bond is present, which is probably pretty common, don't copy the entire bundle and loop through it.
+				bonds[0].callListener.apply(this.targetAndDefaultScope, passingArguments);
 			} else if (bonds.length /* To ensure not too much work is done if the bond bundle is empty. */) {
 				// Copy the bond bundle, to make sure adding and removing bonds won't cause the lines below to behave unexpectedly.
 				bonds = copy(bonds);
 				// Call the listeners of the bonds.
-				if (arguments.length < 2) {
-					for (var index = 0; index < bonds.length; index++) {
-						bonds[index].callListener.call(this);
-					}
-				} else {
-					/**
-					 * @type {!Array}
-					 */
-					var passedArguments = bonds.slice.call(arguments, 1);
-					for (var index = 0; index < bonds.length; index++) {
-						bonds[index].callListener.apply(this, passedArguments);
-					}
+				for (var index = 0; index < bonds.length; index++) {
+					bonds[index].callListener.apply(this.targetAndDefaultScope, passingArguments);
 				}
 			}
 		}
+		// Return the emit-link for chaining.
 		if (this.emitLink) {
 			return this.emitLink;
 		} else {
@@ -386,16 +373,6 @@ var debug = true;
 	 * @return {{remove: !function(!string, !function():*, *=)}}
 	 */
 	EventEmitter.prototype["remove"] = function(eventType, listener, scope) {
-		// Determine the scope that will be passed to the bond, based on the passed scope and the target passed to the constructor.
-		if (undefined === scope) {
-			// If no specific scope is defined, not in the constructor nor in this function, use null as the scope.
-			if (this == this.targetAndDefaultScope) {
-				scope = null;
-			// If no scope was defined to in this function, but a scope was defined in the constructor, use that scope.
-			} else {
-				scope = this.targetAndDefaultScope;
-			}
-		}
 		// Find the bond bundle. Prefix "reserved" event types.
 		if (emptyObject[eventType]) {
 			var bonds = this.bondBundles[eventType = (reservedEventTypePrefix + eventType)];
@@ -411,12 +388,182 @@ var debug = true;
 				}
 			}
 		}
+		// Return the remove-link for chaining.
 		if (this.removeLink) {
 			return this.removeLink;
 		} else {
 			return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
 		}
 	};
+	if (html) {
+		/**
+		 * @constructor
+		 */
+		var HTMLEventEmitter = (function() {
+			/**
+			 * A bond between an HTML event emitter and a listener.
+			 *
+			 * @constructor
+			 * @extends Bond
+			 * @param {!string} eventType
+			 * @param {!function(Event)} listener
+			 * @param {!HTMLEventEmitter} eventEmitter
+			 */
+			function HTMLBond(eventType, listener, eventEmitter) {
+				this.eventType = eventType;
+				this.listener = listener;
+				this.eventEmitter = eventEmitter;
+			}
+			/**
+			 * Like HTMLEventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as
+			 * well as the bond this is called on.
+			 *
+			 * @param {!string} eventType
+			 * @param {function(Event)} listener
+			 * @param {*=} scope
+			 * @return {!Bond}
+			 */
+			HTMLBond.prototype["add"] = Bond.prototype["add"];
+			/**
+			 * Destroys the bond. The event emitter will no longer notify the listener. Bonds cannot be "undestroyed".
+			 *
+			 * @return {undefined}
+			 */
+			HTMLBond.prototype["destroy"] = function() {
+				// TODO: support attachEvent.
+				this.eventEmitter.targetAndDefaultScope.removeEventListener(this.eventType, this.boundListener ? this.boundListener : this.listener, false);
+				// Delete the references to the listener, potentially allowing the listener to be garbage collected.
+				delete this.listener;
+			};
+			/**
+			 * Destroys the bond right after the event emitter notifies the listener. Whether the event emitter has already notified
+			 * the listener at the moment this method is called does not matter: the bond will be destroyed on its first use after
+			 * this method has been called. This method returns this bond itself.
+			 *
+			 * @return {!Bond}
+			 */
+			HTMLBond.prototype["destroyOnUse"] = function() {
+				var bond = this;
+				function destroyBondAndRemoveListener() {
+					// Destroy the bond.
+					bond["destroy"]();
+					// Remove this function itself as a listener.
+					bond.eventEmitter.targetAndDefaultScope.removeEventListener(bond.eventType, destroyBondAndRemoveListener, false);
+				}
+				bond.eventEmitter.targetAndDefaultScope.addEventListener(bond.eventType, destroyBondAndRemoveListener, false);
+				return bond;
+			};
+			if (debug) {
+				HTMLBond.prototype.toString = function() {
+					return "HTMLBond";
+				};
+			}
+			/**
+			 * An HTML event emitter is wrapper around EventTarget.
+			 *
+			 * @constructor
+			 * @param {!EventTarget} targetAndDefaultScope
+			 */
+			function HTMLEventEmitter(targetAndDefaultScope) {
+				this.bondsWithBoundListeners = [];
+				this.targetAndDefaultScope = targetAndDefaultScope;
+			}
+			/**
+			 * Registers the passed listener as a listener for the passed event type, so the passed listener will be notified when
+			 * the underlying event target emits an event with the passed event type.
+			 *
+			 * Returns the bond between the event emitter and the listener. The bond can be destroyed by calling either the remove
+			 * method of the event emitter, or the destroy method of the returned bond.
+			 *
+			 * The passed scope will be used for a scope when the listener is called. If no scope is passed, the underlying event
+			 * target will be used as the scope.
+			 *
+			 * If a listener is registered to an event emitter while it is processing/emitting an event, that listener will not be
+			 * notified of that event.
+			 *
+			 * If multiple identical listeners are registered to the same event emitter with the same scope, the duplicates should be
+			 * discarded. They do not cause the listener to be notified of the same event twice, and since the duplicates are
+			 * discarded, they do not need to be removed manually. This is consistent with the behaviour of the EventTarget in DOM3.
+			 * When trying to register a duplicate, a bond equal to the bond returned while registering it the first time will be
+			 * returned. Note that this behaviour could be slightly different if the underlying event target is poorly implemented.
+			 *
+			 * If the passed listener is null, no exception will be thrown. A valid bond will be returned.
+			 *
+			 * @param {!string} eventType
+			 * @param {function(Event)} listener
+			 * @param {*=} scope
+			 * @return {!Bond}
+			 */
+			HTMLEventEmitter.prototype["add"] = function(eventType, listener, scope) {
+				// If null is passed as the listener, a null-object bond is returned.
+				if (null === listener) {
+					if (this.nullBond) {
+						return this.nullBond;
+					} else {
+						return this.nullBond = new NullBond(this);
+					}
+				}
+				var bond = new HTMLBond(eventType, listener, this);
+				// If no scope is passed, or the scope passed equals the target (which would be weird, but is very much possible), a
+				// direct call to addEventListener will suffice. In this case, addEventListener will also do away with duplicates.
+				if (undefined === scope || this.targetAndDefaultScope === scope) {
+				// If an other scope is passed, the listener must be bound. Because the listener must be bound, we can't remove it
+				// using the standard removeEventListener. Instead, we must save the bound listener, by saving the bond.
+				} else {
+					// However, if a bond with the passed event type, listener and scope already exists, return it. Don't add a new bond.
+					for (var index = 0; index < this.bondsWithBoundListeners.length; index++) {
+						if (this.bondsWithBoundListeners[index].listener == listener && this.bondsWithBoundListeners[index].eventType == eventType) {;
+							if ((bond = this.bondsWithBoundListeners[index]).originalScope === scope) {
+								return bond;
+							}
+						}
+					}
+					// Bind the listener, to ensure the scope'll be correct. Save the bound listener and the scope in the bond.
+					listener = bond.boundListener = jurassic ? bindListener(listener, bond.scope = scope) : listener.bind(bond.scope = scope);
+					// Save the bond, so we can access the bound listener in HTMLEventEmitter.prototype.remove.
+					this.bondsWithBoundListeners.push(bond);
+				}
+				// TODO: support attachEvent.
+				this.targetAndDefaultScope.addEventListener(eventType, listener, false);
+				// Return the bond.
+				return bond;
+			};
+			/**
+			 * Banana banana banana.
+			 *
+			 * @param {!string} eventType
+			 * @param {!function(Event)} listener
+			 * @param {*=} scope
+			 * @return {{remove: !function(!string, !function(Event):*, *=)}}
+			 */
+			HTMLEventEmitter.prototype["remove"] = function(eventType, listener, scope) {
+				// If no scope is passed, or the scope passed equals the target, the listener - if it was in fact added - was directly
+				// passed to the addEventListener method. Therefore, it can be removed by directly calling the removeEventListener
+				// method.
+				if (undefined === scope || this.targetAndDefaultScope === scope) {
+				// If an other scope is passed, the listener - if it was in fact added - was bound. This prevents a direct call to
+				// removeEventListener from doing the trick. We must find the bound listener.
+				} else {
+					for (var index = 0; index < this.bondsWithBoundListeners.length; index++) {
+						if (this.bondsWithBoundListeners[index].listener == listener && this.bondsWithBoundListeners[index].eventType == eventType && this.bondsWithBoundListeners[index].scope === scope) {
+							this.targetAndDefaultScope.removeEventListener(eventType, this.bondsWithBoundListeners.splice(index, 1)[0].boundListener, false);
+							// As duplicates can't exist, stop directly after a catch.
+							break;
+						}
+					}
+				}
+				// TODO: support attachEvent.
+				this.targetAndDefaultScope.removeEventListener(eventType, listener, false);
+				// Return the remove-link for chaining.
+				if (this.removeLink) {
+					return this.removeLink;
+				} else {
+					return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
+				}
+			};
+			return HTMLEventEmitter;
+		})();
+	}
 	// TODO: export the class
 	/*if(typeof define === 'function' && define.amd) {
 		define(function() {
@@ -425,5 +572,8 @@ var debug = true;
 	}
 	else {*/
 		exports["EventEmitter"] = EventEmitter;
+		if (html) {
+			exports["HTMLEventEmitter"] = HTMLEventEmitter;
+		}
 	//}
 }(this));
