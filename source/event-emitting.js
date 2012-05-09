@@ -39,6 +39,12 @@ var html = true;
 var debug = true;
 (function(exports) {
 	/**
+	 * A false constant, to prevent the Closure Compiler from creating its own false constant out of the wrapper function.
+	 *
+	 * @type {boolean}
+	 */
+	var falseConstant = false;
+	/**
 	 * An empty object, which will be used to determine which event types cannot be directly used.
 	 * As objects might have a "watch" property by default, for instance, we should not use "watch" event types in such case.
 	 * Event types that equal the names of properties that exist in object by default are referred to as "reserved" event types,
@@ -54,7 +60,7 @@ var debug = true;
 	 * @const
 	 * @type {!string}
 	 */
-	var reservedEventTypePrefix = "event-type-";
+	var reservedEventTypePrefix = "e-";
 	/**
 	 * A null-object function.
 	 *
@@ -127,7 +133,7 @@ var debug = true;
 		 */
 		var find = (function() {
 			// If the engine supports Array.prototype.lastIndexOf, use it.
-			if (false == jurassic || [].lastIndexOf) {
+			if (falseConstant == jurassic || [].lastIndexOf) {
 				return function(array, searchElement) {
 					return array.lastIndexOf(searchElement);
 				};
@@ -431,7 +437,7 @@ var debug = true;
 			 */
 			HTMLBond.prototype["destroy"] = function() {
 				// TODO: support attachEvent.
-				this.eventEmitter.targetAndDefaultScope.removeEventListener(this.eventType, this.boundListener ? this.boundListener : this.listener, false);
+				this.eventEmitter.targetAndDefaultScope.removeEventListener(this.eventType, this.boundListener ? this.boundListener : this.listener, falseConstant);
 				// Delete the references to the listener, potentially allowing the listener to be garbage collected.
 				delete this.listener;
 			};
@@ -448,9 +454,9 @@ var debug = true;
 					// Destroy the bond.
 					bond["destroy"]();
 					// Remove this function itself as a listener.
-					bond.eventEmitter.targetAndDefaultScope.removeEventListener(bond.eventType, destroyBondAndRemoveListener, false);
+					bond.eventEmitter.targetAndDefaultScope.removeEventListener(bond.eventType, destroyBondAndRemoveListener, falseConstant);
 				}
-				bond.eventEmitter.targetAndDefaultScope.addEventListener(bond.eventType, destroyBondAndRemoveListener, false);
+				bond.eventEmitter.targetAndDefaultScope.addEventListener(bond.eventType, destroyBondAndRemoveListener, falseConstant);
 				return bond;
 			};
 			if (debug) {
@@ -524,7 +530,7 @@ var debug = true;
 					this.bondsWithBoundListeners.push(bond);
 				}
 				// TODO: support attachEvent.
-				this.targetAndDefaultScope.addEventListener(eventType, listener, false);
+				this.targetAndDefaultScope.addEventListener(eventType, listener, falseConstant);
 				// Return the bond.
 				return bond;
 			};
@@ -546,14 +552,14 @@ var debug = true;
 				} else {
 					for (var index = 0; index < this.bondsWithBoundListeners.length; index++) {
 						if (this.bondsWithBoundListeners[index].listener == listener && this.bondsWithBoundListeners[index].eventType == eventType && this.bondsWithBoundListeners[index].scope === scope) {
-							this.targetAndDefaultScope.removeEventListener(eventType, this.bondsWithBoundListeners.splice(index, 1)[0].boundListener, false);
+							this.targetAndDefaultScope.removeEventListener(eventType, this.bondsWithBoundListeners.splice(index, 1)[0].boundListener, falseConstant);
 							// As duplicates can't exist, stop directly after a catch.
 							break;
 						}
 					}
 				}
 				// TODO: support attachEvent.
-				this.targetAndDefaultScope.removeEventListener(eventType, listener, false);
+				this.targetAndDefaultScope.removeEventListener(eventType, listener, falseConstant);
 				// Return the remove-link for chaining.
 				if (this.removeLink) {
 					return this.removeLink;
