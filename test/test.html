@@ -13,7 +13,13 @@
 		<ol id="qunit-tests"></ol>
 		<script src="qunit.js"></script>
 		<script>
+			var additionalTestLoaders = [];
 			(function() {
+				function createScriptElement(source) {
+					var result = document.createElement("script");
+					result.src = source;
+					return result;
+				}
 				var libraryFilename = (function() {
 					var matches = /library-filename=([\w-]+)/.exec(location.search);
 					return null === matches ? "bark" : matches[1];
@@ -24,11 +30,19 @@
 				} else if (header.innerText) {
 					header.innerText = libraryFilename + " tests";
 				}
-				var libraryLoader = document.createElement("script");
-				libraryLoader.src = "../minified/" + libraryFilename + ".js"
-				document.body.appendChild(libraryLoader);
+				// Load the appropriate version of the library.
+				document.body.appendChild(createScriptElement("../minified/" + libraryFilename + ".js"));
+				// Load the appropriate additional tests.
+				if ("server-bark" != libraryFilename) {
+					additionalTestLoaders.push(createScriptElement("html-test.js"));
+				}
 			})();
 		</script>
 		<script src="test.js"></script>
+		<script>
+			for (var index = 0; index < additionalTestLoaders.length; index++) {
+				document.body.appendChild(additionalTestLoaders[index]);
+			}
+		</script>
 	</body>
 </html>
