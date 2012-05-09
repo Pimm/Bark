@@ -6,10 +6,14 @@ default: all
 
 regular:
 	@echo Compiling Bark...
-	@java -jar ${CLOSURE_COMPILER_JAR} --js ${SOURCE_DIRECTORY}/event-emitting.js --js_output_file ${MINIFIED_DIRECTORY}/bark.js --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT --define debug=false --define jurassic=false --warning_level VERBOSE --summary_detail_level 3
+	@java -jar ${CLOSURE_COMPILER_JAR} --js ${SOURCE_DIRECTORY}/event-emitting.js --js_output_file ${MINIFIED_DIRECTORY}/bark.js --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT --define debug=false --define html=true --define jurassic=false --warning_level VERBOSE --summary_detail_level 3
 
 jurassic:
 	@echo "Compiling Jurassic Bark (a version that supports Internet Explorer 8)..."
-	@java -jar ${CLOSURE_COMPILER_JAR} --js ${SOURCE_DIRECTORY}/event-emitting.js --js_output_file ${MINIFIED_DIRECTORY}/jurassic-bark.js --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT --define debug=false --define jurassic=true --warning_level VERBOSE --summary_detail_level 3
+	@java -jar ${CLOSURE_COMPILER_JAR} --js ${SOURCE_DIRECTORY}/event-emitting.js --js_output_file ${MINIFIED_DIRECTORY}/jurassic-bark.js --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT --define debug=false --define html=true --define jurassic=true --warning_level VERBOSE --summary_detail_level 3
 
-all: regular jurassic
+serverside:
+	@echo "Compiling Server Bark (a version with only the tools needed for server-side scripting)..."
+	@java -jar ${CLOSURE_COMPILER_JAR} --js ${SOURCE_DIRECTORY}/event-emitting.js --js_output_file ${MINIFIED_DIRECTORY}/server-bark.js --compilation_level ADVANCED_OPTIMIZATIONS --language_in=ECMASCRIPT5_STRICT --define debug=false --define html=false --define jurassic=false --warning_level VERBOSE --summary_detail_level 3
+
+all: regular jurassic serverside
