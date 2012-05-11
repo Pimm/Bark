@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Pimm Hogeling, Oliver Caldwell (olivercaldwell.co.uk)
+ * Copyright 2011-2012 Pimm Hogeling, Oliver Caldwell
  *
  * Bark is free software. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
  * associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation
@@ -262,6 +262,9 @@ var debug = true;
 	 */
 	function EventEmitter(targetAndDefaultScope) {
 		this.targetAndDefaultScope = undefined === targetAndDefaultScope ? this : targetAndDefaultScope;
+		/**
+		 * @type {Object.<string, !Array.<!Bond>>}
+		 */
 		this.bondBundles = {};
 	}
 	/**
@@ -295,6 +298,9 @@ var debug = true;
 			if (this.nullBond) {
 				return this.nullBond;
 			} else {
+				/**
+				 * @type {!NullBond}
+				 */
 				return this.nullBond = new NullBond(this);
 			}
 		}
@@ -367,6 +373,9 @@ var debug = true;
 		if (this.emitLink) {
 			return this.emitLink;
 		} else {
+			/**
+			 * @type {{emit: !function(string)}}
+			 */
 			return this.emitLink = {"emit": jurassic ? bindListener(this["emit"], this) : this["emit"].bind(this)};
 		}
 	};
@@ -398,6 +407,9 @@ var debug = true;
 		if (this.removeLink) {
 			return this.removeLink;
 		} else {
+			/**
+			 * @type {{remove: !function(!string, !function():*, *=)}}
+			 */
 			return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
 		}
 	};
@@ -471,6 +483,9 @@ var debug = true;
 			 * @param {!EventTarget} targetAndDefaultScope
 			 */
 			function HTMLEventEmitter(targetAndDefaultScope) {
+				/**
+				 * @type {!Array.<!HTMLBond>}
+				 */
 				this.bondsWithBoundListeners = [];
 				this.targetAndDefaultScope = targetAndDefaultScope;
 			}
@@ -506,6 +521,9 @@ var debug = true;
 					if (this.nullBond) {
 						return this.nullBond;
 					} else {
+						/**
+						 * @type {!NullBond}
+						 */
 						return this.nullBond = new NullBond(this);
 					}
 				}
@@ -564,6 +582,9 @@ var debug = true;
 				if (this.removeLink) {
 					return this.removeLink;
 				} else {
+					/**
+					 * @type {{remove: !function(!string, !function(Event):*, *=)}}
+					 */
 					return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
 				}
 			};
