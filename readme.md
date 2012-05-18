@@ -8,7 +8,7 @@ The library is loosely based on [HSL](http://hxhsl.googlecode.com/) and [EventEm
 
 ## Example
 
-Because of the nature of JavaScript, the EventEmitter class can be used in many different way. This example shows a use within [object-oriented](//developer.mozilla.org/en/Introduction_to_Object-Oriented_JavaScript) JavaScript using [composition](//en.wikipedia.org/wiki/Composition_in_object-oriented_programming).
+Because of the nature of JavaScript, the EventEmitter class provided by Bark can be used in many different way. This example shows a use within [object-oriented](//developer.mozilla.org/en/Introduction_to_Object-Oriented_JavaScript) JavaScript using [composition](//en.wikipedia.org/wiki/Composition_in_object-oriented_programming).
 
 	// Define the Dog class.
 	function Dog() {
@@ -34,6 +34,16 @@ Because of the nature of JavaScript, the EventEmitter class can be used in many 
 	// Make the dog bark. This will execute the function above, adding the rule to the console.
 	rex.bark();
 
+This example shows Bark putting DOM events on steroids.
+
+	// Create an event emitter that forms a wrapper around a button.
+	var eventEmitter = new HTMLEventEmitter(document.getElementById("kanjira-toggle-button"));
+	// Create a function that will be called when the button is clicked.
+	eventEmitter.add("click", function(event) {
+		console.debug("Clicked!");
+		// This is where the toggle code goes.
+	});
+
 Documentation and more examples are [in the wiki](https://github.com/Pimm/Bark/wiki).
 
 ## Compatibility
@@ -46,6 +56,7 @@ Bark is tested and working in
 
 Additionally, there's a slightly larger version called of Bark called _Jurassic Bark_ which also supports
  * IE 8
+
 (Please note that `HTMLEventEmitter` doesn't currently support IE 8, though it should. It's on the TODO list.)
 
 To perform a test yourself, simply open `test/test.html` or `test/test.html?library-filename=jurassic-bark` using the browser you want to test the library in.
