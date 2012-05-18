@@ -46,6 +46,7 @@ Bark is tested and working in
 
 Additionally, there's a slightly larger version called of Bark called _Jurassic Bark_ which also supports
  * IE 8
+(Please note that `HTMLEventEmitter` doesn't currently support IE 8, though it should. It's on the TODO list.)
 
 To perform a test yourself, simply open `test/test.html` or `test/test.html?library-filename=jurassic-bark` using the browser you want to test the library in.
 
