@@ -383,7 +383,7 @@ var debug = true;
 	 * @return {{emit: (!function(!string, ...[?])|undefined)}}
 	 * @this {EventEmitter}
 	 */
-	function emit(eventType, rest) {
+	EventEmitter.prototype["emit"] = function emit(eventType, rest) {
 		// Find the bond bundle. Prefix "reserved" event types.
 		if (emptyObject[eventType]) {
 			var bonds = this.bondBundles[eventType = (reservedEventTypePrefix + eventType)];
@@ -417,7 +417,6 @@ var debug = true;
 			return this.emitLink = createEmitLink(this);
 		}
 	};
-	EventEmitter.prototype["emit"] = emit;
 	/**
 	 * Returns link with a remove function that calls the remove method of the passed target scope if it was called on the link,
 	 * and calls the remove method of object it was called on if not.
