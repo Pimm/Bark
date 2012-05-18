@@ -124,7 +124,7 @@ test("HTML add and emit with event test", function() {
 	strictEqual(clickEvent.type, "click");
 });
 // Chaining.
-test("HTML chain-add and chain-emit test", function() {
+test("HTML chain-add test", function() {
 	var button = document.createElement("a");
 	button.eventEmitter = new HTMLEventEmitter(button);
 	var clickCount = 0;

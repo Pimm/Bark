@@ -290,3 +290,33 @@ test("Null listener", function() {
 	bond.destroyOnUse().destroy();
 	strictEqual(barkCount, 1);
 });
+test("Method calling with different scopes", function() {
+	var firstBogusEventEmitter = new EventEmitter();
+	var secondBogusEventEmitter = new EventEmitter();
+	var dog = {};
+	dog.eventEmitter = new EventEmitter(dog);
+	var barkCount = 0;
+	function increaseBarkCount() {
+		barkCount++;
+	}
+	// Steal the add method from firstBogusEventEmitter, use it on dog.eventEmitter.
+	firstBogusEventEmitter.add.call(dog.eventEmitter, "bark", increaseBarkCount);
+	// Steal the emit method from secondBogusEventEmitter, use it on dog.eventEmitter.
+	secondBogusEventEmitter.emit.call(dog.eventEmitter, "bark");
+	strictEqual(barkCount, 1);
+	// Steal the remove method from secondBogusEventEmitter, use it on dog.eventEmitter.
+	secondBogusEventEmitter.remove.call(dog.eventEmitter, "bark", increaseBarkCount);
+	// Steal the emit method from firstBogusEventEmitter, use it on dog.eventEmitter.
+	firstBogusEventEmitter.emit.call(dog.eventEmitter, "bark");
+	strictEqual(barkCount, 1);
+	// Steal the add method from a bond returned by firstBogusEventEmitter, use it on dog.eventEmitter.
+	firstBogusEventEmitter.add("bogus", function() {}).add.call(dog.eventEmitter, "bark", increaseBarkCount);
+	// Steal the emit method from the object secondBogusEventEmitter, use it on dog.eventEmitter.
+	secondBogusEventEmitter.emit("bogus").emit.call(dog.eventEmitter, "bark");
+	strictEqual(barkCount, 2);
+	// Steal the remove method from the object returned by secondBogusEventEmitter, use it on dog.eventEmitter.
+	secondBogusEventEmitter.remove("bogus", function() {}).remove.call(dog.eventEmitter, "bark", increaseBarkCount);
+	// Steal the emit method from firstBogusEventEmitter, use it on dog.eventEmitter.
+	firstBogusEventEmitter.emit.call(dog.eventEmitter, "bark");
+	strictEqual(barkCount, 2);
+});

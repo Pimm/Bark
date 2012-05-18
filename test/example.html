@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Bark example</title>
+		<meta charset="utf-8" />
+	</head>
+	<body>
+		<script src="../minified/bark.js"></script>
+		<script>
+			// Define the Dog class.
+			function Dog() {
+				// Add an eventEmitter property to the Dog instance.
+				this.eventEmitter = new EventEmitter(this);
+			}
+			// Define the bark method.
+			Dog.prototype.bark = function() {
+				this.eventEmitter.emit("bark");
+			};
+			// Define a cool toString method.
+			Dog.prototype.toString = function() {
+				return "Dog";
+			};
+			// Create a dog. Sounds weird, doesn't it?
+			var rex = new Dog();
+			// Create a function that will be called whenever the dog barks.
+			rex.eventEmitter.add("bark", function() {
+				console.debug(this + " is barking");
+				// This is where the code that makes the cats run away goes.
+			});
+			// Make the dog bark. This will execute the function above, adding a rule to the console.
+			rex.bark();
+			
+			// Define the Warrior class.
+			function Warrior() {
+				// Call the constructor of the event emitter, so that a warrior becomes an event emitter as well.
+				EventEmitter.call(this);
+				// Save the initial health.
+				this.health = 60;
+			}
+			// Define addEventListener, removeEventListener and emitEvent methods, which point to the add, remove and emit methods of
+			// the event emitter.
+			Warrior.prototype.addEventListener = EventEmitter.prototype.add;
+			Warrior.prototype.removeEventListener = EventEmitter.prototype.remove;
+			Warrior.prototype.emitEvent = EventEmitter.prototype.emit;
+			// Define the takeDamage method.
+			Warrior.prototype.takeDamage = function(amount) {
+				this.emitEvent("healthChange", this.health -= amount);
+				if (this.health <= 0) {
+					this.emitEvent("die");
+				}
+			};
+			// Define a cool toString method.
+			Warrior.prototype.toString = function() {
+				return "Warrior";
+			};
+			// Create the player.
+			var player = new Warrior();
+			// Create a function that will be called whenever the health of the player changes.
+			player.addEventListener("healthChange", function(health) {
+				console.debug("The health of " + this + " changed to " + health);
+				// Perhaps this is the time to redraw the health bar.
+			});
+			// Make the player take 10 damage.
+			player.takeDamage(10);
+		</script>
+	</body>
+</html>
