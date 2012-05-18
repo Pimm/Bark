@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2012 Pimm Hogeling, Oliver Caldwell
+ * Copyright 2009-2012 Pimm Hogeling, Edo Rivai, Oliver Caldwell
  *
  * Bark is free software. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
  * associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation
@@ -14,9 +14,9 @@
  * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * Alternatively, the contents of this file may be used under the terms of either the GNU General Public License Version 3 or
- * later (the "GPL"), or the GNU Lesser General Public License Version 3 or later (the "LGPL"), in which case the provisions of
- * the GPL or the LGPL are applicable instead of those above.
+ * Alternatively, the Software may be used under the terms of either the GNU General Public License Version 3 or later (the
+ * "GPL"), or the GNU Lesser General Public License Version 3 or later (the "LGPL"), in which case the provisions of the GPL or
+ * the LGPL are applicable instead of those above.
  */
 "use strict";
 /**
@@ -70,27 +70,49 @@ var debug = true;
 	}
 	if (jurassic) {
 		/**
-		 * Returns a version of the passed listener that is bound to the passed scope. (Jurassic Bark only.)
+		 * Returns a version of the passed function that is bound to the passed scope. (Jurassic Bark only.)
 		 *
-		 * @param {(!function()|!function((Event|null)))} listener
+		 * @param {!function(...[?])} listener
 		 * @param {*} scope
-		 * @return {(!function()|!function((Event|null)))}
+		 * @return {!function(...[?])}
 		 */
-		var bindListener = (function() {
+		var bind = (function() {
 			// If the engine supports Function.prototype.bind, use it.
 			if (nop.bind) {
-				return function(listener, scope) {
-					return listener.bind(scope);
+				return function(value, scope) {
+					return value.bind(scope);
 				};
 			// If the engine does not support Function.prototype.bind, use this custom implementation.
 			} else {
-				return function(listener, scope) {
+				return function(value, scope) {
 					return function() {
-						listener.apply(scope, arguments);
+						value.apply(scope, arguments);
 					};
 				};
 			}
 		})();
+	}
+	/**
+	 * Returns a function that creates a composite bond of the passed bond, and a newly created bond. To create a new bond, the
+	 * function calls the add method of the passed target scope if it was called on the bond, and calls the add method of object
+	 * it was called on if not.
+	 *
+	 * @param {!Bond} bond
+	 * @param {*} targetScope
+	 * @return {!function(!string, function():*, *=):!Bond}
+	 */
+	function createComposer(bond, targetScope) {
+		/**
+		 * @param {!string} eventType
+		 * @param {function():*} listener
+		 * @param {*=} scope
+		 * @return {!Bond}
+		 */
+		return function(eventType, listener, scope) {
+			// If this method is called on something other than this bond, such as an other bond or an event emitter, use the add
+			// method of that something. If not, use the add method of the event emitter in the bond.
+			return new CompositeBond(bond, ((this == bond) ? targetScope : this)["add"](eventType, listener, scope));
+		};
 	}
 	/**
 	 * A bond between an event emitter and a listener.
@@ -106,22 +128,20 @@ var debug = true;
 		if (undefined === (this.originalScope = scope)) {
 			this.callListener = (this.listener = listener);
 		} else {
-			this.callListener = jurassic ? bindListener(this.listener = listener, scope) : (this.listener = listener).bind(scope);
+			this.callListener = jurassic ? bind(this.listener = listener, scope) : (this.listener = listener).bind(scope);
 		}
-		this.eventEmitter = eventEmitter;
+		/**
+		 * Like EventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as well as
+		 * the bond this is called on.
+		 *
+		 * @param {!string} eventType
+		 * @param {function():*} listener
+		 * @param {*=} scope
+		 * @return {!Bond}
+		 * @this {(Bond|EventEmitter)}
+		 */
+		this["add"] = createComposer(this, this.eventEmitter = eventEmitter);
 	}
-	/**
-	 * Like EventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as well as the
-	 * bond this is called on.
-	 *
-	 * @param {!string} eventType
-	 * @param {function():*} listener
-	 * @param {*=} scope
-	 * @return {!Bond}
-	 */
-	Bond.prototype["add"] = function(eventType, listener, scope) {
-		return new CompositeBond(this, this.eventEmitter["add"](eventType, listener, scope));
-	};
 	if (jurassic) {
 		/**
 		 * Returns the last index at which a given element can be found in the array, or -1 if it is not present. The array is
@@ -291,6 +311,7 @@ var debug = true;
 	 * @param {function():*} listener
 	 * @param {*=} scope
 	 * @return {!Bond}
+	 * @this {EventEmitter}
 	 */
 	EventEmitter.prototype["add"] = function(eventType, listener, scope) {
 		// If null is passed as the listener, a null-object bond is returned.
@@ -340,12 +361,29 @@ var debug = true;
 		return input.slice(0);
 	}
 	/**
+	 * Returns link with an emit function that calls the emit method of the passed target scope if it was called on the link, and
+	 * calls the emit method of object it was called on if not.
+	 *
+	 * @param {*} targetScope
+	 * @return {{emit: (!function(!string, ...[?])|undefined)}}
+	 */
+	function createEmitLink(targetScope) {
+		var result = {};
+		result["emit"] = function() {
+			var scope = (this == result) ? targetScope : this;
+			return scope["emit"].apply(scope, arguments);
+		};
+		return result;
+	}
+	/**
 	 * Emits an event. All the listeners that are registered to this event emitter for the passed event type will be notified.
 	 *
 	 * @param {!string} eventType
-	 * @return {{emit: !function(string)}}
+	 * @param {...?} rest
+	 * @return {{emit: (!function(!string, ...[?])|undefined)}}
+	 * @this {EventEmitter}
 	 */
-	EventEmitter.prototype["emit"] = function(eventType) {
+	function emit(eventType, rest) {
 		// Find the bond bundle. Prefix "reserved" event types.
 		if (emptyObject[eventType]) {
 			var bonds = this.bondBundles[eventType = (reservedEventTypePrefix + eventType)];
@@ -374,18 +412,34 @@ var debug = true;
 			return this.emitLink;
 		} else {
 			/**
-			 * @type {{emit: !function(string)}}
+			 * @type {{emit: (function(string, ...[?])|undefined)}}
 			 */
-			return this.emitLink = {"emit": jurassic ? bindListener(this["emit"], this) : this["emit"].bind(this)};
+			return this.emitLink = createEmitLink(this);
 		}
 	};
+	EventEmitter.prototype["emit"] = emit;
+	/**
+	 * Returns link with a remove function that calls the remove method of the passed target scope if it was called on the link,
+	 * and calls the remove method of object it was called on if not.
+	 *
+	 * @param {*} targetScope
+	 * @return {{remove: (!function(!string, !function():*, *=)|undefined)}}
+	 */
+	function createRemoveLink(targetScope) {
+		var result;
+		result = {"remove": function(eventType, listener, scope) {
+			return ((this == result) ? targetScope : this)["remove"](eventType, listener, scope);
+		}};
+		return result;
+	}
 	/**
 	 * Banana banana banana.
 	 *
 	 * @param {!string} eventType
 	 * @param {!function():*} listener
 	 * @param {*=} scope
-	 * @return {{remove: !function(!string, !function():*, *=)}}
+	 * @return {{remove: (!function(!string, !function():*, *=)|undefined)}}
+	 * @this {EventEmitter}
 	 */
 	EventEmitter.prototype["remove"] = function(eventType, listener, scope) {
 		// Find the bond bundle. Prefix "reserved" event types.
@@ -408,9 +462,9 @@ var debug = true;
 			return this.removeLink;
 		} else {
 			/**
-			 * @type {{remove: !function(!string, !function():*, *=)}}
+			 * @type {{remove: (!function(!string, !function():*, *=)|undefined)}}
 			 */
-			return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
+			return this.removeLink = createRemoveLink(this);
 		}
 	};
 	if (html) {
@@ -430,18 +484,19 @@ var debug = true;
 			function HTMLBond(eventType, listener, eventEmitter) {
 				this.eventType = eventType;
 				this.listener = listener;
-				this.eventEmitter = eventEmitter;
+				/**
+				 * Like HTMLEventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as
+				 * well as the bond this is called on.
+				 *
+				 * @param {!string} eventType
+				 * @param {function(Event)} listener
+				 * @param {*=} scope
+				 * @return {!Bond}
+				 */
+				this["add"] = createComposer(this, this.eventEmitter = eventEmitter);
 			}
-			/**
-			 * Like HTMLEventEmitter.prototype.add, except that it returns a bond that represents both the newely created bond as
-			 * well as the bond this is called on.
-			 *
-			 * @param {!string} eventType
-			 * @param {function(Event)} listener
-			 * @param {*=} scope
-			 * @return {!Bond}
-			 */
-			HTMLBond.prototype["add"] = Bond.prototype["add"];
+			
+			//HTMLBond.prototype["add"] = addToBond;
 			/**
 			 * Destroys the bond. The event emitter will no longer notify the listener. Bonds cannot be "undestroyed".
 			 *
@@ -543,7 +598,7 @@ var debug = true;
 						}
 					}
 					// Bind the listener, to ensure the scope'll be correct. Save the bound listener and the scope in the bond.
-					listener = bond.boundListener = jurassic ? bindListener(listener, bond.scope = scope) : listener.bind(bond.scope = scope);
+					listener = bond.boundListener = jurassic ? bind(listener, bond.originalScope = scope) : listener.bind(bond.originalScope = scope);
 					// Save the bond, so we can access the bound listener in HTMLEventEmitter.prototype.remove.
 					this.bondsWithBoundListeners.push(bond);
 				}
@@ -558,7 +613,8 @@ var debug = true;
 			 * @param {!string} eventType
 			 * @param {!function(Event)} listener
 			 * @param {*=} scope
-			 * @return {{remove: !function(!string, !function(Event):*, *=)}}
+			 * @return {{remove: (!function(!string, !function():*, *=)|undefined)}}
+			 * @this {HTMLEventEmitter}
 			 */
 			HTMLEventEmitter.prototype["remove"] = function(eventType, listener, scope) {
 				// If no scope is passed, or the scope passed equals the target, the listener - if it was in fact added - was directly
@@ -569,7 +625,7 @@ var debug = true;
 				// removeEventListener from doing the trick. We must find the bound listener.
 				} else {
 					for (var index = 0; index < this.bondsWithBoundListeners.length; index++) {
-						if (this.bondsWithBoundListeners[index].listener == listener && this.bondsWithBoundListeners[index].eventType == eventType && this.bondsWithBoundListeners[index].scope === scope) {
+						if (this.bondsWithBoundListeners[index].listener == listener && this.bondsWithBoundListeners[index].eventType == eventType && this.bondsWithBoundListeners[index].originalScope === scope) {
 							this.targetAndDefaultScope.removeEventListener(eventType, this.bondsWithBoundListeners.splice(index, 1)[0].boundListener, falseConstant);
 							// As duplicates can't exist, stop directly after a catch.
 							break;
@@ -583,9 +639,9 @@ var debug = true;
 					return this.removeLink;
 				} else {
 					/**
-					 * @type {{remove: !function(!string, !function(Event):*, *=)}}
+					 * @type {{remove: (!function(!string, !function():*, *=)|undefined)}}
 					 */
-					return this.removeLink = {"remove": jurassic ? bindListener(this["remove"], this) : this["remove"].bind(this)};
+					return this.removeLink = createRemoveLink(this);
 				}
 			};
 			return HTMLEventEmitter;
